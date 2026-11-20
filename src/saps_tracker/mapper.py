@@ -81,7 +81,12 @@ def build_bust_map(
     out_file = Path(output_path)
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
-    fmap = folium.Map(location=KZN_CENTER, zoom_start=7, tiles="OpenStreetMap")
+    fmap = folium.Map(
+        location=KZN_CENTER,
+        zoom_start=7,
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        attr="Tiles &copy; Esri",
+    )
 
     plotted_count = 0
     total_value = 0.0
