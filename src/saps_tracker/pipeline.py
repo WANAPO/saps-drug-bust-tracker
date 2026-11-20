@@ -10,14 +10,12 @@ def ingest_statement(
     conn: sqlite3.Connection,
     text: str,
     source: str = "unknown",
+    image_path: str | None = None,
 ) -> Incident | None:
-    """Classify, parse, and store a candidate SAPS statement.
-
-    Returns the saved Incident (with database ID) if accepted and new,
-    or None if the text is not a drug bust or is a duplicate.
-    """
+    """Classify, parse, and store a candidate SAPS statement."""
     if not is_drug_bust(text):
         return None
 
     incident = parse_incident(text, source=source)
+    incident.image_path = image_path
     return save_incident(conn, incident)

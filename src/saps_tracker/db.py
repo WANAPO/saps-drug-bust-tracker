@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS incidents (
     drug_type TEXT,
     suspect_count INTEGER,
     estimated_value_zar REAL,
+    image_path TEXT,
     status TEXT NOT NULL DEFAULT 'pending_review',
     created_at TEXT NOT NULL
 );
@@ -28,6 +29,14 @@ def compute_content_hash(raw_text: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def _ensure_migrations(conn: sqlite3.Connection) -> None:
+    """Safely add newer columns to existing SQLite databases."""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(incidents)").fetchall()}
+    if "image_path" not in columns:
+        conn.execute("ALTER TABLE incidents ADD COLUMN image_path TEXT")
+        conn.commit()
+
+
 def get_connection(db_path: str | Path = "data/saps_tracker.db") -> sqlite3.Connection:
     """Open a SQLite connection and ensure the incidents schema exists."""
     if str(db_path) != ":memory:":
@@ -36,6 +45,7 @@ def get_connection(db_path: str | Path = "data/saps_tracker.db") -> sqlite3.Conn
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA_SQL)
+    _ensure_migrations(conn)
     conn.commit()
     return conn
 
@@ -54,10 +64,11 @@ def save_incident(conn: sqlite3.Connection, incident: Incident) -> Incident | No
                 drug_type,
                 suspect_count,
                 estimated_value_zar,
+                image_path,
                 status,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 content_hash,
@@ -67,6 +78,7 @@ def save_incident(conn: sqlite3.Connection, incident: Incident) -> Incident | No
                 incident.drug_type,
                 incident.suspect_count,
                 incident.estimated_value_zar,
+                incident.image_path,
                 incident.status,
                 incident.created_at,
             ),
@@ -101,6 +113,7 @@ def list_incidents(
             drug_type=row["drug_type"],
             suspect_count=row["suspect_count"],
             estimated_value_zar=row["estimated_value_zar"],
+            image_path=row["image_path"],
             status=row["status"],
             created_at=row["created_at"],
         )
@@ -116,6 +129,16 @@ def update_status(conn: sqlite3.Connection, incident_id: int, status: str) -> bo
     cursor = conn.execute(
         "UPDATE incidents SET status = ? WHERE id = ?",
         (status, incident_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def attach_image(conn: sqlite3.Connection, incident_id: int, image_path: str) -> bool:
+    """Attach a seizure/supply photo path to an existing incident."""
+    cursor = conn.execute(
+        "UPDATE incidents SET image_path = ? WHERE id = ?",
+        (image_path, incident_id),
     )
     conn.commit()
     return cursor.rowcount > 0
